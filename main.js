@@ -15,12 +15,12 @@ function init() {
 	qt = new QuadTree(0, 0, canvas.width, canvas.height);
 	particles = [];
 
-	canvas.addEventListener("click", () => {
+	canvas.addEventListener("click", (event) => {
 		const bcr = canvas.getBoundingClientRect();
 		const angle = 2 * Math.PI * Math.random();
 		const p = {
-			x: e.clientX - bcr.left,
-			y: e.clientY - bcr.top,
+			x: event.clientX - bcr.left,
+			y: event.clientY - bcr.top,
 			vx: 100 * Math.cos(angle),
 			vy: 100 * Math.sin(angle)
 		};
