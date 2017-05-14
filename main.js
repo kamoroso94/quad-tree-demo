@@ -1,9 +1,10 @@
 "use strict";
-var canvas, ctx, lastDraw, lastTick, drawId, tickId, qt, particles;
-var MAX_PARTICLES = 512;
-var BOOM_COUNT = 64;
-var RADIUS = 8;
-var TPS = 60;
+
+let canvas, ctx, lastDraw, lastTick, drawId, tickId, qt, particles;
+const MAX_PARTICLES = 512;
+const BOOM_COUNT = 64;
+const RADIUS = 8;
+const TPS = 60;
 
 window.addEventListener("load", init);
 
@@ -14,10 +15,10 @@ function init() {
 	qt = new QuadTree(0, 0, canvas.width, canvas.height);
 	particles = [];
 
-	canvas.addEventListener("click", function(e) {
-		var bcr = canvas.getBoundingClientRect();
-		var angle = 2 * Math.PI * Math.random();
-		var p = {
+	canvas.addEventListener("click", () => {
+		const bcr = canvas.getBoundingClientRect();
+		const angle = 2 * Math.PI * Math.random();
+		const p = {
 			x: e.clientX - bcr.left,
 			y: e.clientY - bcr.top,
 			vx: 100 * Math.cos(angle),
@@ -35,15 +36,15 @@ function init() {
 		}
 	});
 
-	document.getElementById("explode").addEventListener("click", function() {
-		var boomRadius = RADIUS / Math.sin(Math.PI / BOOM_COUNT);
+	document.getElementById("explode").addEventListener("click", () => {
+		const boomRadius = RADIUS / Math.sin(Math.PI / BOOM_COUNT);
 
-		for(var i = 0; i < BOOM_COUNT && particles.length < MAX_PARTICLES; i++) {
-			var angle = i / BOOM_COUNT * 2 * Math.PI;
-			var sin = Math.sin(angle);
-			var cos = Math.cos(angle);
+		for(let i = 0; i < BOOM_COUNT && particles.length < MAX_PARTICLES; i++) {
+			const angle = i / BOOM_COUNT * 2 * Math.PI;
+			const sin = Math.sin(angle);
+			const cos = Math.cos(angle);
 
-			var p = {
+			const p = {
 				x: canvas.width / 2 + boomRadius * cos,
 				y: canvas.height / 2 + boomRadius * sin,
 				vx: 200 * cos,
@@ -62,21 +63,20 @@ function init() {
 		}
 	});
 
-	document.getElementById("toggle").addEventListener("click", function() {
-		if(this.hasAttribute("data-paused")) {
-			this.removeAttribute("data-paused");
-			this.textContent = "Pause";
-
+	const toggleBtn = document.getElementById("toggle");
+	toggleBtn.addEventListener("click", () => {
+		if(canvas.hasAttribute("data-paused")) {
+			canvas.removeAttribute("data-paused");
+			toggleBtn.textContent = "Pause";
 			resume();
 		} else {
-			this.setAttribute("data-paused",true);
-			this.textContent = "Play";
-
+			canvas.setAttribute("data-paused", true);
+			toggleBtn.textContent = "Play";
 			pause();
 		}
 	});
 
-	document.getElementById("clear").addEventListener("click", function() {
+	document.getElementById("clear").addEventListener("click", () => {
 		qt.clear();
 		particles = [];
 	});
@@ -88,19 +88,19 @@ function init() {
 }
 
 function draw() {
-	var currentDraw = Date.now();
+	const currentDraw = Date.now();
 
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 	particles.forEach(function(p1) {
-		var neighbors = qt.getAll(p1.x - 2 * RADIUS, p1.y - 2 * RADIUS, 4 * RADIUS, 4 * RADIUS);
+		const neighbors = qt.getAll(p1.x - 2 * RADIUS, p1.y - 2 * RADIUS, 4 * RADIUS, 4 * RADIUS);
 
 		ctx.fillStyle = "#0000ff";
 
 		if(neighbors.some(p2 => {
 			if(p1 != p2) {
-				var dx = p2.x - p1.x;
-				var dy = p2.y - p1.y;
+				const dx = p2.x - p1.x;
+				const dy = p2.y - p1.y;
 
 				if(dx * dx + dy * dy < 4 * RADIUS * RADIUS) {
 					return true;
@@ -124,12 +124,12 @@ function draw() {
 }
 
 function tick() {
-	var currentTick = Date.now();
-	var dt = (currentTick - lastTick) / 1000;
+	const currentTick = Date.now();
+	const dt = (currentTick - lastTick) / 1000;
 
 	qt.clear();
-	for(var i = 0; i < particles.length; i++) {
-		var p = particles[i];
+	for(let i = 0; i < particles.length; i++) {
+		const p = particles[i];
 
 		p.x += p.vx * dt;
 		p.y += p.vy * dt;
