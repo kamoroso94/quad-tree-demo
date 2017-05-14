@@ -28,10 +28,6 @@
             this.height = h;
         }
 
-        equals(aabb) {
-            return this == aabb || aabb != null && this.x == aabb.x && this.y == aabb.y && this.width == aabb.width && this.height == aabb.height;
-        }
-
         contains(point) {
             return point != null && point.x >= this.left && point.x < this.right && point.y >= this.top && point.y < this.bottom;
         }
