@@ -1,148 +1,312 @@
-"use strict";
-var QuadTree = function(w,h,res) {
-	w = Math.abs(w);
-	h = Math.abs(h);
-	res = (res>0)?res:1;
-	this.width = w;
-	this.height = h;
-	this.resolution = res;
-	this.root = new QuadTree.Node(0,0,w,h,res);
-	
-	this.get = function(x,y) {
-		return this.root.get(x,y);
-	};
-	this.getAll = function(x,y,w,h) {
-		return this.root.getAll(x,y,w,h);
-	};
-	this.set = function(x,y,val) {
-		return this.root.set(x,y,val);
-	};
-	this.remove = function(x,y,val) {
-		this.root.remove(x,y,val);
-	};
-	this.isEmpty = function() {
-		return this.root.isEmpty();
-	};
-	this.clear = function() {
-		this.root = new QuadTree.Node(0,0,this.width,this.height,this.resolution);
-	};
-	this.draw = function(context) {
-		this.root.draw(context);
-	};
-};
-QuadTree.Node = function(x,y,w,h,res) {
-	this.x = x;
-	this.y = y;
-	this.width = w;
-	this.height = h;
-	this.resolution = res;
-	this.childNodes = [null,null,null,null];
-	this.values = [];
-	
-	this.get = function(x,y) {
-		if(!this.isLeaf()) {
-			var bitLeft = (x<this.x+this.width/2)?0:1;
-			var bitTop = (y<this.y+this.height/2)?0:1;
-			
-			var childId = bitLeft<<1|bitTop;
-			var child = this.childNodes[childId];
-			
-			if(child==null) {
-				return [];
-			}
-			return child.get(x,y);
+(function(window) {
+	"use strict";
+
+	const Point = {
+		equals(p1, p2) {
+			return p1 == p2 || p1.x == p2.x && p1.y == p2.y;
 		}
-		return [].concat(this.values);
 	};
-	this.getAll = function(x,y,w,h) {
-		if(!this.isLeaf()) {
-			var all = [];
-			for(var i=0; i<this.childNodes.length; i++) {
-				var child = this.childNodes[i];
-				var childX = this.x+((i&2)>>1)*this.width/2;
-				var childY = this.y+(i&1)*this.height/2;
-				var childW = this.width/2;
-				var childH = this.height/2;
-				
-				// child exists and intersects range
-				// "Fast rectangle to rectangle intersection" http://stackoverflow.com/a/2752387/2727710
-				if(child!=null&&!(childX>x+w||childX+childW<x||childY>y+h||childY+childH<y)) {
-					all = all.concat(child.getAll(x,y,w,h));
-				}
+
+	class AABB {
+		constructor(x, y, w, h) {
+			if(w < 0) {
+				x += w;
+				w *= -1;
 			}
+			if(h < 0) {
+				y += h;
+				h *= -1;
+			}
+
+			this.x = x;
+			this.y = y;
+			this.left = x;
+			this.top = y;
+			this.right = x + w;
+			this.bottom = y + h;
+			this.width = w;
+			this.height = h;
+		}
+
+		equals(aabb) {
+			return this == aabb || aabb != null && this.x == aabb.x && this.y == aabb.y && this.width == aabb.width && this.height == aabb.height;
+		}
+
+		contains(point) {
+			return point != null && point.x >= this.left && point.x < this.right && point.y >= this.top && point.y < this.bottom;
+		}
+
+		// "Fast rectangle to rectangle intersection" http://stackoverflow.com/a/2752369/2727710
+		intersects(aabb) {
+			return this == aabb || aabb != null && this.left < aabb.right && aabb.left < this.right && this.top < aabb.bottom && aabb.top < this.bottom;
+		}
+	}
+
+	class QuadTree {
+		constructor(x, y, w, h) {
+			this.aabb = new AABB(x, y, w, h);
+			this.root = new Node(this.aabb);
+			this.entryCount = 0;
+		}
+
+		get(key) {
+			return this.isKeyValid(key) ? this.root.get(key) : null;
+		}
+
+		getAll(x, y, w, h) {
+			return this.root.getAll(new AABB(x, y, w, h));
+		}
+
+		put(key, value) {
+			const success = this.isKeyValid(key) && this.isValueValid(value) && this.root.put(key, value);
+
+			if(success) {
+				this.entryCount++;
+			}
+
+			return success;
+		}
+
+		remove(key) {
+			const removedValue = this.isKeyValid(key) ? this.root.remove(key) : null;
+
+			if(removedValue != null) {
+				this.entryCount--;
+			}
+
+			return removedValue;
+		}
+
+		size() {
+			return this.entryCount;
+		}
+
+		getHeight() {
+			return this.root.getHeight();
+		}
+
+		isEmpty() {
+			return this.entryCount == 0;
+		}
+
+		isKeyValid(key) {
+			return this.aabb.contains(key);
+		}
+
+		isValueValid(value) {
+			return value != null;
+		}
+
+		containsKey(key) {
+			return this.isKeyValid(key) && this.root.containsKey(key);
+		}
+
+		containsValue(value) {
+			return this.isValueValid(value) && this.root.containsValue(value);
+		}
+
+		clear() {
+			this.root = new Node(this.aabb);
+			this.entryCount = 0;
+		}
+
+		draw(ctx) {
+			this.root.draw(ctx);
+		}
+	}
+
+	class Node {
+		constructor(aabb) {
+			this.aabb = aabb;
+			this.children = [null, null, null, null];
+			this.keys = [];
+			this.values = [];
+		}
+
+		getChildIndex(key) {
+			const bitLeft = key.x < this.aabb.x + this.aabb.width / 2 ? 0 : 1;
+			const bitTop = key.y < this.aabb.y + this.aabb.height / 2 ? 0 : 1;
+
+			return bitLeft << 1 | bitTop;
+		}
+
+		getKeyIndex(key1) {
+			return this.keys.findIndex(key2 => Point.equals(key1, key2));
+		}
+
+		findChild(key) {
+			const index = this.getChildIndex(key);
+			let child = this.children[index];
+
+			if(child == null) {
+				const childAABB = new AABB(
+					this.aabb.x + (index >> 1 & 1) * this.aabb.width / 2,
+					this.aabb.y + (index & 1) * this.aabb.height / 2,
+					this.aabb.width / 2,
+					this.aabb.height / 2
+				);
+				child = new Node(childAABB);
+
+				this.children[index] = child;
+			}
+
+			return child;
+		}
+
+		get(key) {
+			if(!this.isLeaf()) {
+				const child = this.children[this.getChildIndex(key)];
+
+				if(child == null) {
+					return null;
+				}
+
+				return child.get(key);
+			}
+
+			const index = this.getKeyIndex(key);
+
+			return index >= 0 ? this.values[index] : null;
+		}
+
+		getAll(aabb) {
+			const all = [];
+
+			if(!this.isLeaf()) {
+				// collect results from getAll invoked on eligible children
+				this.children.forEach(child => {
+					if(child != null && aabb.intersects(child.aabb)) {
+						all.push(...child.getAll(aabb));
+					}
+				});
+			} else {
+				// collect values that lie in AABB
+				this.keys.forEach((key, index) => {
+					if(aabb.contains(key)) {
+						all.push(this.values[index]);
+					}
+				});
+			}
+
 			return all;
 		}
-		return [].concat(this.values);
-	};
-	this.set = function(x,y,val) {
-		if(!this.isLeaf()) {
-			var bitLeft = (x<this.x+this.width/2)?0:1;
-			var bitTop = (y<this.y+this.height/2)?0:1;
-			
-			var childId = bitLeft<<1|bitTop;
-			var child = this.childNodes[childId];
-			
-			if(child==null) {
-				child = new QuadTree.Node(
-					this.x+bitLeft*this.width/2,
-					this.y+bitTop*this.height/2,
-					this.width/2,
-					this.height/2,
-					this.resolution
-				);
-				this.childNodes[childId] = child;
+
+		put(key, value) {
+			if(!this.isLeaf()) {
+				return this.findChild(key).put(key, value);
 			}
-			return child.set(x,y,val);
-		}
-		var index = this.values.indexOf(val);
-		if(index<0) {
-			this.values.push(val);
+
+			if(this.getKeyIndex(key) >= 0) {
+				return false;
+			}
+
+			this.keys.push(key);
+			this.values.push(value);
+			this.split();
+
 			return true;
 		}
-		return false;
-	};
-	this.remove = function(x,y,val) {
-		if(!this.isLeaf()) {
-			var bitLeft = (x<this.x+this.width/2)?0:1;
-			var bitTop = (y<this.y+this.height/2)?0:1;
-			
-			var childId = bitLeft<<1|bitTop;
-			var child = this.childNodes[childId];
-			
-			if(child==null) {
-				return false;
+
+		remove(key) {
+			if(!this.isLeaf()) {
+				const index = this.getChildIndex(key);
+				const child = this.children[index];
+
+				if(child == null) {
+					return null;
+				}
+
+				const removedValue = child.remove(key);
+
+				if(child.isEmpty()) {
+					this.children[index] = null;
+				}
+
+				return removedValue;
 			}
-			if(!child.remove(x,y,val)) {
-				return false;
+
+			const index = this.getKeyIndex(key);
+
+			if(index >= 0) {
+				const removedValue = this.values[index];
+				this.keys.splice(index, 1);
+				this.values.splice(index, 1);
+				return removedValue;
 			}
-			this.childNodes[childId] = null;
-			return this.isEmpty();
+
+			return null;
 		}
-		var index = this.values.indexOf(val);
-		if(index<0) {
-			return false;
+
+		getHeight() {
+			let height = 0;
+
+			this.children.forEach(child => {
+				if(child != null) {
+					height = Math.max(height, child.getHeight());
+				}
+			});
+
+			return 1 + height;
 		}
-		this.values.splice(index,1);
-		return this.isEmpty();
-	};
-	this.isEmpty = function() {
-		for(var i=0; i<this.childNodes.length; i++) {
-			if(this.childNodes[i]!=null) {
-				return false;
+
+		isEmpty() {
+			return this.isLeaf() && this.keys.length == 0;
+		}
+
+		containsKey(key) {
+			if(!this.isLeaf()) {
+				const child = this.children[this.getChildIndex(key)];
+
+				return child != null && child.containsKey(key);
 			}
+
+			return this.getKeyIndex(key) >= 0;
 		}
-		return this.values.length==0;
-	};
-	this.isLeaf = function() {
-		return this.width<=this.resolution||this.height<=this.resolution;
-	};
-	this.draw = function(context) {
-		context.strokeRect(this.x,this.y,this.width,this.height);
-		for(var i=0; i<this.childNodes.length; i++) {
-			var child = this.childNodes[i];
-			if(child!=null) {
-				child.draw(context);
+
+		containsValue(value) {
+			if(!this.isLeaf()) {
+				return this.children.some(child => child != null && child.containsValue(value));
 			}
+
+			return this.values.includes(value);
 		}
-	};
-};
+
+		draw(ctx) {
+			this.children.forEach(child => {
+				if(child != null) {
+					child.draw(ctx);
+				}
+			});
+
+			ctx.strokeRect(this.aabb.x, this.aabb.y, this.aabb.width, this.aabb.height);
+		}
+
+		isLeaf() {
+			return this.children.every(child => child == null);
+		}
+
+		split() {
+			if(this.keys.length <= Node.MAX_BUCKET_SIZE) {
+				return;
+			}
+
+			while(this.keys.length > 0) {
+				var key = this.keys.pop();
+				var value = this.values.pop();
+				var child = this.findChild(key);
+
+				child.keys.push(key);
+				child.values.push(value);
+			}
+
+			this.children.forEach(child => {
+				if(child != null) {
+					child.split();
+				}
+			});
+		}
+	}
+	Node.MAX_BUCKET_SIZE = 5;
+
+	window.QuadTree = QuadTree;
+})(window);

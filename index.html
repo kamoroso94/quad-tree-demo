@@ -5,18 +5,52 @@
         <meta charset="utf-8" />
         <link rel="stylesheet" href="style.css" />
         <script src="quadtree.js"></script>
-        <script src="quadtreedemo.js"></script>
+        <script src="main.js"></script>
     </head>
 
     <body>
         <h1>Quad Tree Demo</h1>
+        <p>The quad tree (QT) is essentially a set of keys paired with values,
+            where every key is a unique point, and every value is non-null,
+            along with an axis-aligned bounding box (AABB).
+            The AABB defines the area which the QT can observe.
+            Any attempt to insert a key not in the AABB is rejected.
+            Any attempt to insert a duplicate key is rejected.
+            Any attempt to inset a non-null value is rejected.
+            You can find a value by a specific key,
+            or find multiple values by an AABB.
+            You can also remove values by their key,
+            or clear the entire QT.
+        </p>
+        <p>This demo animates particles with a circular boundary in the canvas.
+            The particles consist of a position vector and velocity vector,
+            and are stored in an array for iterating over easily.
+            They are also stored in a QT to compare against close neighbors for collisions.
+            This demo removes any objects that have a duplicate key (i.e., occupy the same position).
+        </p>
+        <p>To interact with the demo, you can click anywhere on the canvas
+            to spawn a new particle which moves in a random direction.
+            There is also a button labelled "Explode" which, when clicked,
+            will place a large number of particles in a circle on the canvas, moving outwards.
+            The button labelled "Pause" or "Play" simply stops or starts the animation.
+            The button labelled "Clear" resets the array of particles and the QT.
+            Once a particle hits an edge of the canvas, it bounces off in the opposite direction.
+            The gridlines of the QT are drawn in green,
+            and all particles are drawn in blue,
+            with the exception of particles which have collided, which are drawn in red.
+        </p>
+
         <canvas width="512" height="512"></canvas>
         <p>
             <strong>Particles:</strong>
             <span id="particles">0</span>
         </p>
-	<button id="explode">Explode</button>
-	<button id="toggle">Pause</button>
-	<button id="clear">Clear</button>
+
+		<button id="explode">Explode</button>
+		<button id="toggle">Pause</button>
+		<button id="clear">Clear</button>
+
+        <footer>
+            <p>Created by Kyle Amoroso in 2016.</p>
     </body>
 </html>
