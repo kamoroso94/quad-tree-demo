@@ -28,7 +28,8 @@ function getBoomCount() {
 
 // page load listener
 window.addEventListener('load', () => {
-  let lastDraw, lastTick, drawId, tickId;
+  let lastTick;
+  let paused = false;
   const MAX_PARTICLES = 512;
   const VELOCITY = 100;
   const RADIUS = 8;
@@ -107,15 +108,18 @@ window.addEventListener('load', () => {
     particles.clear();
   });
 
-  lastDraw = Date.now();
-  drawId = requestAnimationFrame(draw);
-  lastTick = Date.now();
-  tickId = setTimeout(tick, 1000 / TPS);
+  lastTick = performance.now();
+  requestAnimationFrame(loop);
+
+  function loop(now) {
+    const dt = (now - lastTick) / 1000;
+    draw();
+    if (!paused) tick(dt);
+    lastTick = now;
+  }
 
   // refresh canvas
   function draw() {
-    const currentDraw = Date.now();
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for(const p1 of flatten(particles.values())) {
@@ -149,15 +153,10 @@ window.addEventListener('load', () => {
     drawNode(particles.root, ctx);
 
     document.getElementById('particles').textContent = particles.size();
-
-    lastDraw = currentDraw;
-    drawId = requestAnimationFrame(draw);
   }
 
   // tick all particles by one
-  function tick() {
-    const currentTick = Date.now();
-    const dt = (currentTick - lastTick) / 1000;
+  function tick(dt) {
 
     // NOTE: lastGen holds reference to old root node
     const lastGen = flatten(particles.values());
@@ -194,19 +193,15 @@ window.addEventListener('load', () => {
         if(!particles.set(key, [p])) console.error('Failed to set', p);
       }
     }
-
-    lastTick = currentTick;
-    tickId = setTimeout(tick, 1000 / TPS);
   }
 
   // restart timeouts
   function resume() {
-    lastTick = Date.now();
-    tickId = setTimeout(tick, 1000 / TPS);
+    paused = false;
   }
 
   // pause timeouts
   function pause() {
-    clearTimeout(tickId);
+    paused = true;
   }
 });
