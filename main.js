@@ -94,13 +94,11 @@ window.addEventListener('load', () => {
   toggleBtn.addEventListener('click', () => {
     if(canvas.hasAttribute('data-paused')) {
       canvas.removeAttribute('data-paused');
-      toggleBtn.textContent = 'Pause';
-      resume();
     } else {
       canvas.setAttribute('data-paused', true);
-      toggleBtn.textContent = 'Play';
-      pause();
     }
+    paused = !paused;
+    toggleBtn.textContent = paused ? 'Play' : 'Pause';
   });
 
   // removes all particles from canvas
