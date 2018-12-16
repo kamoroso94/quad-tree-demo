@@ -192,14 +192,4 @@ window.addEventListener('load', () => {
       }
     }
   }
-
-  // restart timeouts
-  function resume() {
-    paused = false;
-  }
-
-  // pause timeouts
-  function pause() {
-    paused = true;
-  }
 });
