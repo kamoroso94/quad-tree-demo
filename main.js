@@ -20,14 +20,18 @@ function drawNode(node, ctx) {
   ctx.strokeRect(node.aabb.x, node.aabb.y, node.aabb.width, node.aabb.height);
 }
 
+function getBoomCount() {
+  const clamp = (val, min, max) => Math.max(min, Math.min(val, max));
+  const boomCountTag = document.getElementById('boom-count');
+  return clamp(Math.floor(boomCountTag.value), 2, 97);
+}
+
 // page load listener
 window.addEventListener('load', () => {
   let lastDraw, lastTick, drawId, tickId;
   const MAX_PARTICLES = 512;
   const VELOCITY = 100;
-  const BOOM_COUNT = 64;
   const RADIUS = 8;
-  const BOOM_RADIUS = RADIUS / Math.sin(Math.PI / BOOM_COUNT);
   const TPS = 60;
   const canvas = document.querySelector('canvas');
   const ctx = canvas.getContext('2d');
@@ -37,6 +41,7 @@ window.addEventListener('load', () => {
     width: canvas.width,
     height: canvas.height
   });
+  console.log(particles);
 
   // spawn particle in canvas at mouse click
   canvas.addEventListener('click', (event) => {
@@ -59,14 +64,17 @@ window.addEventListener('load', () => {
 
   // trigger particle explosion on click of #explode
   document.getElementById('explode').addEventListener('click', () => {
-    for(let i = 0; i < BOOM_COUNT && particles.size() < MAX_PARTICLES; i++) {
-      const angle = 2 * Math.PI * i / BOOM_COUNT;
+    const boomCount = getBoomCount();
+    const boomRadius = RADIUS / Math.sin(Math.PI / boomCount);
+
+    for(let i = 0; i < boomCount && particles.size() < MAX_PARTICLES; i++) {
+      const angle = 2 * Math.PI * i / boomCount;
       const sin = Math.sin(angle);
       const cos = Math.cos(angle);
 
       const p = {
-        x: canvas.width / 2 + BOOM_RADIUS * cos,
-        y: canvas.height / 2 + BOOM_RADIUS * sin,
+        x: canvas.width / 2 + boomRadius * cos,
+        y: canvas.height / 2 + boomRadius * sin,
         vx: 200 * cos,
         vy: 200 * sin
       };
@@ -180,14 +188,10 @@ window.addEventListener('load', () => {
 
       if(particles.has(key)) {
         particles.get(key).push(p);
+      } else if(!particles.aabb.contains(key)) {
+        console.error('Point flew away', p);
       } else {
-        if(!particles.set(key, [p])
-          .has(key)
-        ) console.log('Failed to set', p);
-
-        if(particles.get(key) === undefined) {
-          console.log('Failed to set', p);
-        }
+        if(!particles.set(key, [p])) console.error('Failed to set', p);
       }
     }
 
@@ -197,9 +201,6 @@ window.addEventListener('load', () => {
 
   // restart timeouts
   function resume() {
-    lastDraw = Date.now();
-    cancelAnimationFrame(drawId);
-    drawId = requestAnimationFrame(draw);
     lastTick = Date.now();
     tickId = setTimeout(tick, 1000 / TPS);
   }

@@ -10,30 +10,32 @@
   <body>
     <div class="container">
       <h1>Quad Tree Demo</h1>
-      <p>The quad tree (QT) is essentially a set of keys paired with values and an
-        axis-aligned bounding box (AABB), where every key is a unique point.  The
-        AABB defines the area which the QT can observe.  Any attempt to insert a
-        key not in the AABB is rejected.  Any attempt to insert a duplicate key is
-        rejected.  You can find a value by a specific key, or find multiple values
-        by an AABB.  You can also remove values by their key, or clear the entire
-        QT.
+      <p>The quad tree (QT) is essentially a set of keys paired with values and
+        an axis-aligned bounding box (AABB), where every key is a unique point.
+        The AABB defines the area which the QT can observe. Any attempt to
+        insert a key not in the AABB is rejected. Any attempt to insert a
+        duplicate key is rejected. You can find a value by a specific key, or
+        find multiple values by an AABB. You can also remove values by their
+        key, or clear the entire QT.
       </p>
-      <p>This demo animates particles with a circular boundary in the canvas.  The
-        particles consist of a position vector and velocity vector.  They are
-        stored in a QT to compare against close neighbors for collisions.  This
-        demo handles any objects that have a duplicate key (i.e., occupy the same
-        position) by storing them in an array.  Note that the more objects that
-        occupy the same position will drastically slow down the simulation.
+      <p>This demo animates particles with a circular boundary in the canvas.
+        The particles consist of a position vector and velocity vector. They are
+        stored in a QT to compare against close neighbors for collisions. This
+        demo handles any objects that have a duplicate key (i.e., they occupy
+        the same position) by storing them in an array. Note that the more
+        objects that occupy the same position will drastically slow down the
+        simulation.
       </p>
-      <p>To interact with the demo, you can click anywhere on the canvas to spawn
-        a new particle which moves in a random direction.  There is also a button
-        labelled "Explode" which, when clicked, will place a large number of
-        particles in a circle on the canvas, moving outwards.  The button labelled
-        "Pause" or "Play" simply stops or starts the animation.  The button
-        labelled "Clear" resets the QT of particles.  Once a particle hits an edge
-        of the canvas, it bounces off in the opposite direction.  The gridlines of
-        the QT are drawn in green, and all particles are drawn in blue, with the
-        exception of particles which have collided, which are drawn in red.
+      <p>To interact with the demo, you can click anywhere on the canvas to
+        spawn a new particle which moves in a random direction. There is also a
+        button labelled “Explode” which, when clicked, will place a large number
+        of particles in a circle on the canvas, moving outwards. The button
+        labelled “Pause” or “Play” simply stops or starts the animation. The
+        button labelled “Clear” resets the QT of particles. Once a particle hits
+        an edge of the canvas, it bounces off in the opposite direction. The
+        gridlines of the QT are drawn in green, and all particles are drawn in
+        blue, with the exception of particles which have collided, which are
+        drawn in red.
       </p>
 
       <canvas width="512" height="512"></canvas>
@@ -42,7 +44,12 @@
         <span id="particles">0</span>
       </p>
 
-      <div>
+      <div class="form-control">
+        <label for="boom-count"><strong>Explosion size:</strong></label>
+        <input type="number" value="64" min="2" max="97" id="boom-count" />
+      </div>
+
+      <div class="form-control">
         <button id="explode">Explode</button>
         <button id="toggle">Pause</button>
         <button id="clear">Clear</button>
