@@ -1,308 +1,382 @@
-(function(window) {
-    "use strict";
+// returns true if points are the same
+function pointsEqual([x1, y1], [x2, y2]) {
+  return x1 == x2 && y1 == y2;
+}
 
-    const Point = {
-        equals(p1, p2) {
-            return p1 == p2 || p1.x == p2.x && p1.y == p2.y;
-        }
-    };
+// returns index of key in node.kvPairs, or -1
+function keyToPairIndex(node, key1) {
+  return node.kvPairs.findIndex(([key2]) => pointsEqual(key1, key2));
+}
 
-    class AABB {
-        constructor(x, y, w, h) {
-            if(w < 0) {
-                x += w;
-                w *= -1;
-            }
-            if(h < 0) {
-                y += h;
-                h *= -1;
-            }
+// returns conversion of key to child index:
+//         0
+//    NW   ^   NE
+//         |
+//       0 | 2
+//  0 <----+----> 1
+//       1 | 3
+//         |
+//    SW   v   SE
+//         1
+function keyToChildIndex(node, [x, y]) {
+  const bitLeft = x < node.aabb.x + node.aabb.width / 2 ? 0 : 1;
+  const bitTop = y < node.aabb.y + node.aabb.height / 2 ? 0 : 1;
+  return bitLeft << 1 | bitTop;
+}
 
-            this.x = x;
-            this.y = y;
-            this.left = x;
-            this.top = y;
-            this.right = x + w;
-            this.bottom = y + h;
-            this.width = w;
-            this.height = h;
-        }
+// returns first two bits of index
+function getDirectionBits(index) {
+  return [index >> 1 & 1, index & 1];
+}
 
-        contains(point) {
-            return point != null && point.x >= this.left && point.x < this.right && point.y >= this.top && point.y < this.bottom;
-        }
+// returns child at key or new child
+function keyToChild(node, key) {
+  const index = keyToChildIndex(node, key);
+  let child = node.children[index];
+  if(child != null) return child;
 
-        // "Fast rectangle to rectangle intersection" http://stackoverflow.com/a/2752369/2727710
-        intersects(aabb) {
-            return this == aabb || aabb != null && this.left < aabb.right && aabb.left < this.right && this.top < aabb.bottom && aabb.top < this.bottom;
-        }
+  const [bitLeft, bitTop] = getDirectionBits(index);
+  const childAABB = new AABB(
+    node.aabb.x + bitLeft * node.aabb.width / 2,
+    node.aabb.y + bitTop * node.aabb.height / 2,
+    node.aabb.width / 2,
+    node.aabb.height / 2
+  );
+
+  child = new Node(childAABB, node.MAX_BUCKET_SIZE);
+  node.children[index] = child;
+  return child;
+}
+
+// splits node such that it contains no more entries than node.MAX_BUCKET_SIZE
+function splitNode(node) {
+  if(node.kvPairs.length <= node.MAX_BUCKET_SIZE) return;
+
+  for(const [key, value] of node.kvPairs) {
+    const child = keyToChild(node, key);
+    child.kvPairs.push([key, value]);
+  }
+  node.kvPairs = [];
+
+  for(const child of node.children) {
+    if(child != null) splitNode(child);
+  }
+}
+
+// represents an axis-aligned bounding box
+export class AABB {
+  // converts AABB-like object to AABB instance
+  static from(aabb) {
+    if(aabb == null) return null;
+
+    const x = 'x' in aabb ? aabb.x : 'left' in aabb ? aabb.left : 0;
+    const y = 'y' in aabb ? aabb.y : 'top' in aabb ? aabb.top : 0;
+    const w = 'width' in aabb ? aabb.width : 'right' in aabb ? aabb.right - x : 0;
+    const h = 'height' in aabb ? aabb.height : 'bottom' in aabb ? aabb.bottom - y : 0;
+
+    return new AABB(x, y, w, h);
+  }
+
+  constructor(x, y, w, h) {
+    if(w < 0) {
+      x += w;
+      w *= -1;
+    }
+    if(h < 0) {
+      y += h;
+      h *= -1;
     }
 
-    class QuadTree {
-        constructor(x, y, w, h) {
-            this.aabb = new AABB(x, y, w, h);
-            this.root = new Node(this.aabb);
-            this.entryCount = 0;
-        }
+    this.x = x;
+    this.y = y;
+    this.left = x;
+    this.top = y;
+    this.right = x + w;
+    this.bottom = y + h;
+    this.width = w;
+    this.height = h;
+  }
 
-        get(key) {
-            return this.isKeyValid(key) ? this.root.get(key) : null;
-        }
+  // return true if point lies in this AABB
+  contains(point) {
+    if(point == null) return false;
+    const [x, y] = point;
 
-        getAll(x, y, w, h) {
-            return this.root.getAll(new AABB(x, y, w, h));
-        }
+    return x >= this.left
+      && x < this.right
+      && y >= this.top
+      && y < this.bottom;
+  }
 
-        put(key, value) {
-            const success = this.isKeyValid(key) && this.isValueValid(value) && this.root.put(key, value);
+  // returns true if this intersects the other AABB
+  intersects(other) {
+    if(!(other instanceof AABB)) other = AABB.from(other);
+    if(other == null) return false;
+    if(this == other) return true;
 
-            if(success) {
-                this.entryCount++;
-            }
+    // "Fast rectangle to rectangle intersection"
+    // http://stackoverflow.com/a/2752369/2727710
+    return this.left < other.right
+      && other.left < this.right
+      && this.top < other.bottom
+      && other.top < this.bottom;
+  }
+}
 
-            return success;
-        }
+// represents a node in the PointQuadTree
+class Node {
+  constructor(aabb, bucketCapacity) {
+    this.aabb = aabb;
+    this.children = [null, null, null, null];
+    this.kvPairs = [];
+    this.MAX_BUCKET_SIZE = bucketCapacity;
+  }
 
-        remove(key) {
-            const removedValue = this.isKeyValid(key) ? this.root.remove(key) : null;
+  // alias for this.entries
+  *[Symbol.iterator]() {
+    yield* this.entries();
+  }
 
-            if(removedValue != null) {
-                this.entryCount--;
-            }
+  // returns value deleted by key
+  delete(key) {
+    if(!this.isLeaf()) {
+      const index = keyToChildIndex(this, key);
+      const child = this.children[index];
+      if(child == null) return null;
 
-            return removedValue;
-        }
-
-        size() {
-            return this.entryCount;
-        }
-
-        getHeight() {
-            return this.root.getHeight();
-        }
-
-        isEmpty() {
-            return this.entryCount == 0;
-        }
-
-        isKeyValid(key) {
-            return this.aabb.contains(key);
-        }
-
-        isValueValid(value) {
-            return value != null;
-        }
-
-        containsKey(key) {
-            return this.isKeyValid(key) && this.root.containsKey(key);
-        }
-
-        containsValue(value) {
-            return this.isValueValid(value) && this.root.containsValue(value);
-        }
-
-        clear() {
-            this.root = new Node(this.aabb);
-            this.entryCount = 0;
-        }
-
-        draw(ctx) {
-            this.root.draw(ctx);
-        }
+      const removedValue = child.delete(key);
+      if(child.isEmpty()) this.children[index] = null;
+      return removedValue;
     }
 
-    class Node {
-        constructor(aabb) {
-            this.aabb = aabb;
-            this.children = [null, null, null, null];
-            this.keys = [];
-            this.values = [];
-        }
+    const index = keyToPairIndex(this, key);
+    if(index < 0) return undefined;
 
-        getChildIndex(key) {
-            const bitLeft = key.x < this.aabb.x + this.aabb.width / 2 ? 0 : 1;
-            const bitTop = key.y < this.aabb.y + this.aabb.height / 2 ? 0 : 1;
+    const [, removedValue] = this.kvPairs[index];
+    this.kvPairs.splice(index, 1);
+    return removedValue;
+  }
 
-            return bitLeft << 1 | bitTop;
-        }
-
-        getKeyIndex(key1) {
-            return this.keys.findIndex(key2 => Point.equals(key1, key2));
-        }
-
-        findChild(key) {
-            const index = this.getChildIndex(key);
-            let child = this.children[index];
-
-            if(child == null) {
-                const childAABB = new AABB(
-                    this.aabb.x + (index >> 1 & 1) * this.aabb.width / 2,
-                    this.aabb.y + (index & 1) * this.aabb.height / 2,
-                    this.aabb.width / 2,
-                    this.aabb.height / 2
-                );
-                child = new Node(childAABB);
-
-                this.children[index] = child;
-            }
-
-            return child;
-        }
-
-        get(key) {
-            if(!this.isLeaf()) {
-                const child = this.children[this.getChildIndex(key)];
-
-                if(child == null) {
-                    return null;
-                }
-
-                return child.get(key);
-            }
-
-            const index = this.getKeyIndex(key);
-
-            return index >= 0 ? this.values[index] : null;
-        }
-
-        getAll(aabb) {
-            const all = [];
-
-            if(!this.isLeaf()) {
-                // collect results from getAll invoked on eligible children
-                this.children.forEach(child => {
-                    if(child != null && aabb.intersects(child.aabb)) {
-                        all.push(...child.getAll(aabb));
-                    }
-                });
-            } else {
-                // collect values that lie in AABB
-                this.keys.forEach((key, index) => {
-                    if(aabb.contains(key)) {
-                        all.push(this.values[index]);
-                    }
-                });
-            }
-
-            return all;
-        }
-
-        put(key, value) {
-            if(!this.isLeaf()) {
-                return this.findChild(key).put(key, value);
-            }
-
-            if(this.getKeyIndex(key) >= 0) {
-                return false;
-            }
-
-            this.keys.push(key);
-            this.values.push(value);
-            this.split();
-
-            return true;
-        }
-
-        remove(key) {
-            if(!this.isLeaf()) {
-                const index = this.getChildIndex(key);
-                const child = this.children[index];
-
-                if(child == null) {
-                    return null;
-                }
-
-                const removedValue = child.remove(key);
-
-                if(child.isEmpty()) {
-                    this.children[index] = null;
-                }
-
-                return removedValue;
-            }
-
-            const index = this.getKeyIndex(key);
-
-            if(index >= 0) {
-                const removedValue = this.values[index];
-                this.keys.splice(index, 1);
-                this.values.splice(index, 1);
-                return removedValue;
-            }
-
-            return null;
-        }
-
-        getHeight() {
-            let height = 0;
-
-            this.children.forEach(child => {
-                if(child != null) {
-                    height = Math.max(height, child.getHeight());
-                }
-            });
-
-            return 1 + height;
-        }
-
-        isEmpty() {
-            return this.isLeaf() && this.keys.length == 0;
-        }
-
-        containsKey(key) {
-            if(!this.isLeaf()) {
-                const child = this.children[this.getChildIndex(key)];
-
-                return child != null && child.containsKey(key);
-            }
-
-            return this.getKeyIndex(key) >= 0;
-        }
-
-        containsValue(value) {
-            if(!this.isLeaf()) {
-                return this.children.some(child => child != null && child.containsValue(value));
-            }
-
-            return this.values.includes(value);
-        }
-
-        draw(ctx) {
-            this.children.forEach(child => {
-                if(child != null) {
-                    child.draw(ctx);
-                }
-            });
-
-            ctx.strokeRect(this.aabb.x, this.aabb.y, this.aabb.width, this.aabb.height);
-        }
-
-        isLeaf() {
-            return this.children.every(child => child == null);
-        }
-
-        split() {
-            if(this.keys.length <= Node.MAX_BUCKET_SIZE) {
-                return;
-            }
-
-            while(this.keys.length > 0) {
-                var key = this.keys.pop();
-                var value = this.values.pop();
-                var child = this.findChild(key);
-
-                child.keys.push(key);
-                child.values.push(value);
-            }
-
-            this.children.forEach(child => {
-                if(child != null) {
-                    child.split();
-                }
-            });
-        }
+  // returns an iterable over the key-value pairs
+  *entries() {
+    if(!this.isLeaf()) {
+      for(const child of this.children) {
+        if(child != null) yield* child.entries();
+      }
+    } else {
+      yield* Array.from(this.kvPairs);
     }
-    Node.MAX_BUCKET_SIZE = 5;
+  }
 
-    window.QuadTree = QuadTree;
-})(window);
+  // iterates over the key-value pairs with callbackFn
+  forEach(callbackFn, thisArg, container) {
+    if(!this.isLeaf()) {
+      for(const child of this.children) {
+        if(child != null) child.forEach(callbackFn, thisArg, container);
+      }
+    } else {
+      for(const [key, value] of this.kvPairs) {
+        callbackFn.call(thisArg, key, value, container);
+      }
+    }
+  }
+
+  // returns the value at the given key
+  get(key) {
+    if(!this.isLeaf()) {
+      const child = this.children[keyToChildIndex(this, key)];
+      if(child == null) return undefined;
+      return child.get(key);
+    }
+
+    const index = keyToPairIndex(this, key);
+    if(index < 0) return undefined;
+    const [, value] = this.kvPairs[index];
+    return value;
+  }
+
+  // collects all values whose keys lie within the given AABB
+  getAll(aabb, values) {
+    if(!this.isLeaf()) {
+      // collect results from getAll invoked on eligible children
+      for(const child of this.children) {
+        if(child != null && child.aabb.intersects(aabb)) {
+          child.getAll(aabb, values);
+        }
+      }
+    } else {
+      // collect values that lie in AABB
+      for(const [key, value] of this.kvPairs) {
+        if(aabb.contains(key)) {
+          values.push(value);
+        }
+      }
+    }
+  }
+
+  // returns true if key exists
+  has(key) {
+    if(!this.isLeaf()) {
+      const child = this.children[keyToChildIndex(this, key)];
+      return child != null && child.has(key);
+    }
+
+    return keyToPairIndex(this, key) >= 0;
+  }
+
+  // returns tree depth
+  height() {
+    let height = 0;
+
+    this.children.forEach(child => {
+      if(child != null) height = Math.max(height, child.height());
+    });
+
+    return 1 + height;
+  }
+
+  // returns true if no entries
+  isEmpty() {
+    return this.isLeaf() && this.kvPairs.length == 0;
+  }
+
+  // returns true if no child nodes
+  isLeaf() {
+    return this.children.every(child => child == null);
+  }
+
+  // returns an iterable over the keys
+  *keys() {
+    if(!this.isLeaf()) {
+      for(const child of this.children) {
+        if(child != null) yield* child.keys();
+      }
+    } else {
+      yield* this.kvPairs.map(([key]) => key);
+    }
+  }
+
+  // returns true if no entry was overwritten
+  set(key, value) {
+    if(!this.isLeaf()) return keyToChild(this, key).set(key, value);
+    // TODO: enable overwriting of existing entries
+    if(keyToPairIndex(this, key) >= 0) return false;
+
+    this.kvPairs.push([key, value]);
+    splitNode(this);
+
+    return true;
+  }
+
+  // returns iterable over values
+  *values() {
+    if(!this.isLeaf()) {
+      for(const child of this.children) {
+        if(child != null) yield* child.values();
+      }
+    } else {
+      yield* this.kvPairs.map(([, value]) => value);
+    }
+  }
+}
+
+// represents a point quadtree
+export default class PointQuadTree {
+  constructor(aabb, iterable = [], bucketCapacity = 4) {
+    aabb = AABB.from(aabb);
+    if(aabb == null || aabb.width == 0 || aabb.height == 0) {
+      throw new RangeError("aabb must have non-zero area");
+    }
+
+    if(bucketCapacity < 1) {
+      throw new RangeError("bucketCapacity must be at least 1");
+    }
+
+    this.MAX_BUCKET_SIZE = bucketCapacity;
+    this.aabb = aabb;
+    this.root = new Node(aabb, bucketCapacity);
+    this.entryCount = 0;
+
+    for(const [key, value] of iterable) {
+      this.set(key, value);
+    }
+  }
+
+  size() {
+    return this.entryCount;
+  }
+
+  // alias for this.root[Symbol.iterator]
+  *[Symbol.iterator]() {
+    yield* this.root;
+  }
+
+  // resets to empty
+  clear() {
+    this.root = new Node(this.aabb, this.MAX_BUCKET_SIZE);
+    this.entryCount = 0;
+  }
+
+  // returns true if entry was deleted
+  delete(key) {
+    if(this.aabb.contains(key)) {
+      this.root.delete(key);
+      this.entryCount--;
+      return true;
+    }
+
+    return false;
+  }
+
+  // alias for this.root.entries
+  entries() {
+    return this.root.entries();
+  }
+
+  // calls this.root.forEach with this as container
+  forEach(callbackFn, thisArg) {
+    this.root.forEach(callbackFn, thisArg, this);
+  }
+
+  // returns value at key, or undefined
+  get(key) {
+    return this.aabb.contains(key) ? this.root.get(key) : undefined;
+  }
+
+  // returns all values with keys within aabb
+  getAll(aabb) {
+    aabb = AABB.from(aabb);
+    if(aabb == null) return [];
+
+    const values = [];
+    this.root.getAll(aabb, values);
+    return values;
+  }
+
+  // returns true if key exists
+  has(key) {
+    return this.aabb.contains(key) && this.root.has(key);
+  }
+
+  // alias for this.root.height
+  height() {
+    return this.root.height();
+  }
+
+  // alias for this.root.keys
+  keys() {
+    return this.root.keys();
+  }
+
+  // stores value at key, returns this
+  set(key, value) {
+    const success = this.aabb.contains(key) && this.root.set(key, value);
+    if(success) this.entryCount++;
+    return this;
+  }
+
+  // alias for this.root.values
+  values() {
+    return this.root.values();
+  }
+}
