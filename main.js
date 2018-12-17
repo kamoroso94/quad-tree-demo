@@ -30,6 +30,7 @@ function getBoomCount() {
 window.addEventListener('load', () => {
   let lastTick;
   let paused = false;
+  let particleCount = 0;
   const MAX_PARTICLES = 512;
   const VELOCITY = 100;
   const RADIUS = 8;
@@ -42,10 +43,11 @@ window.addEventListener('load', () => {
     width: canvas.width,
     height: canvas.height
   });
-  console.log(particles);
 
   // spawn particle in canvas at mouse click
   canvas.addEventListener('click', (event) => {
+    if(particleCount >= MAX_PARTICLES) return;
+
     const bcr = canvas.getBoundingClientRect();
     const angle = 2 * Math.PI * Math.random();
     const p = {
@@ -68,7 +70,7 @@ window.addEventListener('load', () => {
     const boomCount = getBoomCount();
     const boomRadius = RADIUS / Math.sin(Math.PI / boomCount);
 
-    for(let i = 0; i < boomCount && particles.size() < MAX_PARTICLES; i++) {
+    for(let i = 0; i < boomCount && particleCount < MAX_PARTICLES; i++) {
       const angle = 2 * Math.PI * i / boomCount;
       const sin = Math.sin(angle);
       const cos = Math.cos(angle);
@@ -86,6 +88,7 @@ window.addEventListener('load', () => {
       } else {
         particles.set(key, [p]);
       }
+      particleCount++;
     }
   });
 
@@ -146,7 +149,7 @@ window.addEventListener('load', () => {
     ctx.strokeStyle = '#00ff00';
     drawNode(particles.root, ctx);
 
-    document.getElementById('particles').textContent = particles.size();
+    document.getElementById('particles').textContent = particleCount;
   }
 
   // tick all particles by one
@@ -155,6 +158,7 @@ window.addEventListener('load', () => {
     // NOTE: lastGen holds reference to old root node
     const lastGen = flatten(particles.values());
     particles.clear();
+    particleCount = 0;
 
     for(const p of lastGen) {
       p.x += p.vx * dt;
@@ -181,10 +185,13 @@ window.addEventListener('load', () => {
 
       if(particles.has(key)) {
         particles.get(key).push(p);
+        particleCount++;
       } else if(!particles.aabb.contains(key)) {
         console.error('Point flew away', p);
+      } else if(particles.set(key, [p])) {
+        particleCount++;
       } else {
-        if(!particles.set(key, [p])) console.error('Failed to set', p);
+        console.error('Failed to set', p);
       }
     }
   }
