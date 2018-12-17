@@ -79,8 +79,8 @@ window.addEventListener('load', () => {
       const p = {
         x: canvas.width / 2 + boomRadius * cos,
         y: canvas.height / 2 + boomRadius * sin,
-        vx: 200 * cos,
-        vy: 200 * sin
+        vx: 2 * VELOCITY * cos,
+        vy: 2 * VELOCITY * sin
       };
       const key = [p.x, p.y];
 
