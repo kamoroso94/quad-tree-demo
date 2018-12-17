@@ -92,11 +92,6 @@ window.addEventListener('load', () => {
   // toggles freeze of simulation
   const toggleBtn = document.getElementById('toggle');
   toggleBtn.addEventListener('click', () => {
-    if(canvas.hasAttribute('data-paused')) {
-      canvas.removeAttribute('data-paused');
-    } else {
-      canvas.setAttribute('data-paused', true);
-    }
     paused = !paused;
     toggleBtn.textContent = paused ? 'Play' : 'Pause';
   });
