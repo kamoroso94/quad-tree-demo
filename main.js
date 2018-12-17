@@ -114,6 +114,7 @@ window.addEventListener('load', () => {
     draw();
     if (!paused) tick(dt);
     lastTick = now;
+    requestAnimationFrame(loop);
   }
 
   // refresh canvas
